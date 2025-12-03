@@ -1,1 +1,0 @@
-/Users/alexanderpenaflor/AndroidStudioProjects/MySpamFilterApp/rust/target/aarch64-linux-android/release/libspam_logger.so: /Users/alexanderpenaflor/AndroidStudioProjects/MySpamFilterApp/rust/src/lib.rs

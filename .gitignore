@@ -1,0 +1,94 @@
+######################################
+# ANDROID / KOTLIN / ANDROID STUDIO
+######################################
+
+# Gradle build folders
+.gradle/
+build/
+
+# Local configuration (never commit)
+local.properties
+
+# Sign-in keys
+*.keystore
+*.jks
+
+# Android Studio
+.idea/
+*.iml
+
+# Captures
+captures/
+
+# Generated Files
+generated/
+out/
+
+# IntelliJ-specific
+*.ipr
+*.iws
+
+######################################
+# NDK / CMAKE / CXX BUILD OUTPUT
+######################################
+
+# Native build directory
+.cxx/
+
+# CMake build output
+cmake-build-*/
+
+# Ninja / Makefile generated scripts
+**/CMakeFiles/
+**/CMakeCache.txt
+**/build.ninja
+**/rules.ninja
+**/Makefile
+**/*.make
+**/*.mk
+
+######################################
+# RUST / CARGO (if using Rust in project)
+######################################
+
+# Rust target folder
+target/
+
+# Cargo lock can be included or excluded depending on your preference
+# For binary projects it's fine to track it; for libraries may omit.
+Cargo.lock
+
+######################################
+# OTHER COMMON IGNORES
+######################################
+
+# Logs
+*.log
+
+# Mac / Windows
+.DS_Store
+Thumbs.db
+
+# Kotlin build cache
+kotlin-build/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+######################################
+# APK / BUNDLE OUTPUT
+######################################
+
+*.apk
+*.ap_
+*.aab
+
+######################################
+# Jetpack Compose previews
+######################################
+
+*.preview.kotlin_metadata
+
