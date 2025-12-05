@@ -1,18 +1,27 @@
 package com.example.myspamfilterapp
 
-import android.util.Log
 
 object SpamLogger {
     private val logList = mutableListOf<String>()
 
-    // Add a new entry
-    fun logNumber(number: String) {
-        logList.add(number)
+    init {
+        System.loadLibrary("spam_logger")
     }
 
-    // Get a copy of current entries (for Compose)
-    fun getLog(): List<String> {
-        return logList.toList()
+
+    fun logNumber(entry: String, path: String){
+        logList.add(entry)
+
+        try {
+            logNumberRust(entry, path)
+        } catch (e: Exception){
+            e.printStackTrace()
+        }
     }
+
+
+    // Get a copy of current entries (for Compose)
+    fun getLog(): List<String> = logList.toList()
+    private external fun logNumberRust(entry: String, path: String)
 }
 

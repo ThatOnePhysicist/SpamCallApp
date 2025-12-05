@@ -8,6 +8,19 @@ import androidx.compose.ui.unit.dp
 import com.example.myspamfilterapp.settings.SettingsRepository
 import kotlinx.coroutines.launch
 
+/**
+ * Composable screen that displays and allows the user to modify
+ * spam-related settings.
+ *
+ * The settings include:
+ * - Enabling/disabling spam blocking.
+ * - Using heuristic detection for spam calls.
+ * - Automatically blocking unknown callers.
+ *
+ * All changes are persisted via [SettingsRepository].
+ *
+ * @param repo Instance of [SettingsRepository] used to read and update settings.
+ */
 @Composable
 fun SettingsScreen(repo: SettingsRepository) {
     val scope = rememberCoroutineScope()
@@ -38,6 +51,15 @@ fun SettingsScreen(repo: SettingsRepository) {
     }
 }
 
+/**
+ * Composable for a labeled switch setting.
+ *
+ * Displays a title and a switch that can be toggled on/off.
+ *
+ * @param title The label of the setting.
+ * @param value Current state of the switch.
+ * @param onChange Lambda invoked when the switch value changes.
+ */
 @Composable
 fun SettingSwitch(title: String, value: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

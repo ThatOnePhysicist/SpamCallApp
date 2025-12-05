@@ -3,27 +3,52 @@ package com.example.myspamfilterapp
 import android.content.ContentValues
 import android.provider.BlockedNumberContract
 import android.telecom.CallScreeningService
-import android.telecom.Call
 import android.telecom.Call.Details
 import android.util.Log
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.example.myspamfilterapp.data.PreferencesRepository
-import kotlinx.coroutines.flow.first
-import com.example.myspamfilterapp.data.SpamDatabase
 import com.example.myspamfilterapp.data.SpamCall
+import com.example.myspamfilterapp.data.SpamDatabase
 
+/**
+ * Service that screens incoming calls to detect and block potential spam.
+ *
+ * Extends [CallScreeningService] to allow system-level spam call screening.
+ * Combines system spam flags, heuristic detection, and user preferences
+ * to determine whether a call should be blocked.
+ *
+ * Detected spam calls are logged to both the database ([SpamDatabase])
+ * and a file log via [SpamLogger].
+ */
 class SpamCallService : CallScreeningService() {
 
     private companion object {
+
+        /** Extra key used by Android for potential system spam calls. */
         const val EXTRA_CALL_SCREENING_IS_POTENTIAL_SPAM =
             "android.telecom.extra.CALL_SCREENING_IS_POTENTIAL_SPAM"
     }
 
+    /** Coroutine scope for performing I/O tasks asynchronously. */
     private val ioScope = CoroutineScope(Dispatchers.IO)
 
+    /**
+     * Callback invoked when a new incoming call is detected.
+     *
+     * Evaluates whether the call is spam using:
+     * 1. System-provided spam flag (Pixel devices only)
+     * 2. Heuristic checks on the phone number
+     * 3. User preferences from [PreferencesRepository]
+     *
+     * Logs all relevant call information, inserts it into the database,
+     * updates call counts, and blocks the call if determined to be spam.
+     *
+     * @param callDetails The details of the incoming call.
+     */
     override fun onScreenCall(callDetails: Details) {
 
         // --- Extract caller info ---
@@ -54,6 +79,7 @@ class SpamCallService : CallScreeningService() {
             append("Final spam verdict: $finalSpam\n")
             append("RAW DETAILS: $callDetails\n")
             append("---------------------------\n")
+
         }
 
         Log.d("SpamCallService", logEntry)
@@ -82,8 +108,9 @@ class SpamCallService : CallScreeningService() {
                     callCount = newCount
                 )
             )
-
-            SpamLogger.logNumber(logEntry)
+            val logPath = applicationContext.filesDir.absolutePath + "/spam_calls.log"
+            val fileEntry = "$timestamp - $phoneNumber - system = $systemSpamFlag - heuristic = $heuristicFlag - finalSpam = $finalSpam"
+            SpamLogger.logNumber(fileEntry, logPath)
         }
 
         // --- Option B: block + reject + prevent voicemail ---
@@ -108,6 +135,15 @@ class SpamCallService : CallScreeningService() {
     // --------------------------------------------------------------------
     // BLOCK NUMBER USING SYSTEM BLOCK LIST
     // --------------------------------------------------------------------
+
+    /**
+     * Adds a phone number to the system's blocked numbers list.
+     *
+     * Does nothing if the number is `"Unknown"`. Handles missing permissions
+     * gracefully by logging errors.
+     *
+     * @param number The phone number to block.
+     */
     private fun blockNumber(number: String) {
         if (number == "Unknown") return
 
@@ -131,155 +167,27 @@ class SpamCallService : CallScreeningService() {
     // --------------------------------------------------------------------
     // HEURISTIC SUSPICIOUS NUMBER DETECTOR
     // --------------------------------------------------------------------
+
+    /**
+     * Determines whether a phone number is suspicious based on heuristics.
+     *
+     * Heuristics used:
+     * - Unknown or private numbers
+     * - Numbers shorter than 7 digits
+     * - Numbers with only 1–2 unique digits
+     * - Toll-free prefixes (800, 833, 844, 855, 866, 877, 888)
+     *
+     * @param number The phone number to check.
+     * @return `true` if the number is suspicious, `false` otherwise.
+     */
     private fun isSuspiciousNumber(number: String): Boolean {
-        // unknown or private numbers
         if (number == "Unknown") return true
-        // phone numbers less than 7 digits
         if (number.length < 7) return true
-        // repetitive digits
         if (number.toSet().size <= 2) return true
 
-        // toll-free prefix
-        val tollFreePrefixes = listOf("800", "833", "844", "855", "866", "877", "888")
+        val tollFreePrefixes = listOf("+1800", "+1833", "+1844", "+1855", "+1866", "+1877", "+1888")
         if (tollFreePrefixes.any { number.startsWith(it) }) return true
 
         return false
     }
 }
-
-
-
-//package com.example.myspamfilterapp
-//
-//import android.net.Uri
-//import android.provider.BlockedNumberContract
-//import android.telecom.CallScreeningService
-//import android.telecom.Call
-//import android.util.Log
-//import kotlinx.coroutines.*
-//import java.text.SimpleDateFormat
-//import java.util.Date
-//import java.util.Locale
-//import android.content.ContentValues
-//
-//class SpamCallService : CallScreeningService() {
-//
-//    private companion object {
-//        const val EXTRA_CALL_SCREENING_IS_POTENTIAL_SPAM =
-//            "android.telecom.extra.CALL_SCREENING_IS_POTENTIAL_SPAM"
-//    }
-//
-//    private val scope = CoroutineScope(Dispatchers.Default)
-//
-//    override fun onScreenCall(callDetails: Call.Details) {
-//
-//        scope.launch {
-//
-//            val phoneNumber = callDetails.handle?.schemeSpecificPart ?: "Unknown"
-//            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-//
-//            // ------------------------------------------------------------
-//            // (1) SYSTEM FLAG — Pixel may provide this (rare)
-//            // ------------------------------------------------------------
-//            val systemSpamFlag =
-//                callDetails.extras?.getBoolean(EXTRA_CALL_SCREENING_IS_POTENTIAL_SPAM, false)
-//                    ?: false
-//
-//            // ------------------------------------------------------------
-//            // (2) HEURISTIC DETECTOR
-//            // ------------------------------------------------------------
-//            val heuristicFlag = isSuspiciousNumber(phoneNumber)
-//
-//            // ------------------------------------------------------------
-//            // (3) FINAL DECISION
-//            // ------------------------------------------------------------
-//            val finalSpam = systemSpamFlag || heuristicFlag
-//
-//            // ------------------------------------------------------------
-//            // (4) Build log entry
-//            // ------------------------------------------------------------
-//            val logEntry = buildString {
-//                append("$timestamp — $phoneNumber\n")
-//                append("System flag: $systemSpamFlag\n")
-//                append("Heuristic: $heuristicFlag\n")
-//                append("FINAL SPAM VERDICT: $finalSpam\n")
-//                append("RAW: $callDetails\n")
-//                append("---------------------------\n")
-//            }
-//            val db = SpamDatabase.get(applicationContext)
-//            db.spamCallDao().insert(
-//                SpamCall(
-//                    phoneNumber = phoneNumber,
-//                    timestamp = System.currentTimeMillis(),
-//                    isSystemFlagged = systemSpamFlag,
-//                    isHeuristicFlagged = heuristicFlag,
-//                    isFinalSpam = finalSpam,
-//                    rawDetails = callDetails.toString(),
-//                    reason = when {
-//                        systemSpamFlag -> "System flagged"
-//                        heuristicFlag -> "Heuristic rule triggered"
-//                        else -> "Unknown"
-//                    },
-//                    blocked = finalSpam
-//                )
-//            )
-//
-//            // Save log entry persistently
-//            SpamLogger.logNumber(logEntry)
-//
-//            Log.d("SpamCallService", logEntry)
-//
-//            // ------------------------------------------------------------
-//            // (5) If spam => block + reject + prevent voicemail
-//            // ------------------------------------------------------------
-//            if (finalSpam) {
-//                blockNumber(phoneNumber)
-//                rejectAsSpam(callDetails)
-//            }
-//        }
-//    }
-//
-//    // --------------------------------------------------------------------
-//    // Reject call + prevent voicemail
-//    // --------------------------------------------------------------------
-//    private fun rejectAsSpam(details: Call.Details) {
-//        val response = CallResponse.Builder()
-//            .setDisallowCall(true)                // Reject call
-//            .setRejectCall(true)                  // Hang up immediately
-//            .setSkipCallLog(true)                 // Do not show in call log
-//            .setSkipNotification(true)            // Silence missed-call notification
-//            .build()
-//
-//        respondToCall(details, response)
-//    }
-//
-//    // --------------------------------------------------------------------
-//    // Block the number using Android's system block list
-//    // --------------------------------------------------------------------
-//    private fun blockNumber(number: String) {
-//        if (number == "Unknown") return
-//
-//        try {
-//            val values = ContentValues().apply {
-//                put(BlockedNumberContract.BlockedNumbers.COLUMN_ORIGINAL_NUMBER, number)
-//            }
-//
-//            contentResolver.insert(
-//                BlockedNumberContract.BlockedNumbers.CONTENT_URI,
-//                values
-//            )
-//
-//        } catch (e: SecurityException) {
-//            Log.e("SpamCallService", "Missing BLOCKED_NUMBERS permission", e)
-//        } catch (e: Exception) {
-//            Log.e("SpamCallService", "Block insert failed", e)
-//        }
-//    }
-//
-//    private fun isSuspiciousNumber(number: String): Boolean {
-//        if (number == "Unknown") return true
-//        if (number.length < 7) return true
-//        if (number.toSet().size <= 2) return true
-//        return false
-//    }
-//}
